@@ -1,24 +1,3 @@
-// create table app_users( user_id int auto_increment, user_name varchar(40) not null, mail_address varchar(100) not null unique, password_hash varbinary(100), salt varbinary(20) not null, primary key(user_id));
-// create table books( book_id int auto_increment primary key, posterID int, foreign key(posterID) references app_users(user_id), name varchar(50) not null, exprice double not null, price double not null, ISBN varchar(20) not null, imageURL varchar(400) not null, date DATE not null, description varchar(500) not null);
-// insert into books(posterID, name, exprice, price, ISBN, imageURL, date, description) values(1, '数学分析上', 44.60, 24.00, "9787040295672", "https://img.alicdn.com/imgextra/i2/391838199/O1CN01FjStMt2ARBr7nzqZK_!!0-item_pic.jpg_430x430q90.jpg", now(), "真心求出，上面还有我的笔记，我的数分最后97分");
-//insert into books(posterID, name, exprice, price, ISBN, imageURL, date, description) values(3, '计算机组成与设计：硬件/软件接口', 139.00, 56.80, "9787111608943", "https://img.alicdn.com/imgextra/i4/2130152348/O1CN011TDQQN43LtwrFKn_!!2130152348-2-item_pic.png_430x430q90.jpg", now(), "七成新，上面有三代学长的笔记以及Patt的亲笔签名");
-//insert into books(posterID, name, exprice, price, ISBN, imageURL, date, description) values(3, 'PHP7内核剖析', 89.00, 30.00, "9787121328107", "https://img.alicdn.com/imgextra/i2/2695809921/O1CN01E7wNQp2N9rtuhuZFZ_!!0-item_pic.jpg_430x430q90.jpg", now(), "超棒的PHP入门教程");
-//insert into books(posterID, name, exprice, price, ISBN, imageURL, date, description) values(5, 'PHP7内核剖析', 17.50, 7.00, "9787020135639", "https://img.alicdn.com/imgextra/i1/859515618/TB2X4pNih9YBuNjy0FfXXXIsVXa_!!859515618.jpg_430x430q90.jpg", now(), "史铁生先生充满哲思又极为人性化的代表作之一");
-//insert into books(posterID, name, exprice, price, ISBN, imageURL, date, description) values(5, '鸟哥的Linux私房菜', 86.80, 40.50, "9787115472588", "https://img.alicdn.com/imgextra/i4/1049653664/TB2U2AwaNTpK1RjSZFGXXcHqFXa_!!1049653664-0-item_pic.jpg_430x430q90.jpg", now(), "超经典的Linux入门书");
-// create table message( message_id int auto_increment primary key, from_id int, foreign key(from_id) references app_users(user_id), to_id int, foreign key(to_id) references app_users(user_id), date DATETIME not null, content varchar(1000) not null);
-// insert into message(from_id, to_id, date, content) value (1, 3, now(), '请问我上次购买的数学分析下发货了吗？');
-// insert into message(from_id, to_id, date, content) value (3, 1, now(), '发了');
-// insert into message(from_id, to_id, date, content) value (3, 1, now(), '我帮你查查快递单号');
-// insert into message(from_id, to_id, date, content) value (3, 1, now(), '寄的是顺丰，单号是xxx');
-// insert into message(from_id, to_id, date, content) value (3, 1, now(), '你查询一下？');
-// insert into message(from_id, to_id, date, content) value (1, 3, now(), 'okk我看到了，谢谢啊');
-// create table request( request_id int auto_increment primary key, user_id int, foreign key(user_id) references app_users(user_id), title varchar(100) not null, content varchar(1000) not null, date DATE not null);
-// insert into request(user_id, title, content, date) value (3, "求购数学分析", "多少钱都行，急求", now());
-// insert into request(user_id, title, content, date) value (3, "想要一本普通物理学", "考试需要", now());
-// insert into request(user_id, title, content, date) value (3, "有没有好书推荐？", "希望是文学史上的经典名著，可以私聊", now());
-// insert into request(user_id, title, content, date) value (3, "想入门PHP，有推荐的入门书吗？", "非CS专业，希望可以讲的浅显易懂", now());
-// insert into request(user_id, title, content, date) value (5, "有没有入门信息安全的图书？", "比如道哥的白帽子讲信息安全那种书", now());
-
 package main
 
 import (
@@ -48,11 +27,11 @@ const (
 var db = &sql.DB{}
 
 type Book struct {
-	Book_id string
-	Posterid int
+	BookId string
+	PosterId int
 	PosterName string
-	Book_Name string
-	Exprice float64
+	BookName string
+	ExPrice float64
 	Price float64
 	ISBN string
 	ImageURL string
@@ -71,6 +50,28 @@ type Message struct {
 	IfSelfSend bool
 	Date string
 	Content string
+}
+
+type Request struct {
+	RequestId int
+	UserId string
+	UserName string
+	Title string
+	Content string
+	Date string
+}
+
+type Order struct {
+	OrderId string
+	CustomerId string
+	CustomerName string
+	BookName string
+	ExPrice float64
+	Price float64
+	BookId string
+	OrderStatus int
+	StartDate string
+	EndDate string
 }
 
 func main() {
@@ -96,6 +97,12 @@ func main() {
 	engine.GET("/getbook/:arg", GetBook)
 	engine.Any("people/:id", GetPeople)
 	engine.POST("message", GetMessage)
+	engine.GET("/requests", GetRequest)
+	engine.POST("/sendmessage", SendMessage)
+	engine.GET("/inprocessorder", InProcessOrder)
+	engine.GET("/processedorder", ProcessedOrder)
+	engine.GET("/inprocessbooks", InProcessBooks)
+	engine.POST("/searchboook", SearchBook)
 	engine.Run(":4201")
 
 	/*
@@ -280,6 +287,336 @@ func MakeAuth(authToken string) (userId string, error error) {
 	return userId, nil
 }
 
+func SearchBook(context *gin.Context) {
+	context.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+	body, err := ioutil.ReadAll(context.Request.Body)
+	if err != nil {
+		log.Println(err)
+		http.Error(context.Writer, "Login failed!", http.StatusUnauthorized)
+		return
+	}
+
+	var userData map[string]string
+	json.Unmarshal(body, &userData)
+	rows, err := db.Query("select book_id, name, exprice, price, ISBN, imageURL, date, description" +
+		" from books where status = 0 and name like ?", "%" + userData["BookName"] + "%")
+	if err != nil {
+		log.Println(err)
+		http.Error(context.Writer, "Sql Error", http.StatusNotFound)
+		return
+	}
+	var result []Book
+	for rows.Next() {
+		var bookId int
+		var bookName string
+		var exPrice float64
+		var price float64
+		var ISBN string
+		var imageURL string
+		var date string
+		var description string
+
+		if err := rows.Scan(&bookId, &bookName, &exPrice, &price, &ISBN, &imageURL, &date, &description); err != nil {
+			log.Println(err)
+			http.Error(context.Writer, "Unknown error", http.StatusNotFound)
+			return
+		}
+		result = append(result, Book {BookId: strconv.Itoa(bookId), BookName: bookName, ExPrice: exPrice, Price: price,
+			ISBN: ISBN, ImageURL: imageURL, Date: date, Description: description})
+	}
+	result_marshal, err := json.Marshal(result)
+	fmt.Println(string(result_marshal))
+	if err != nil {
+		log.Fatal(err)
+		http.Error(context.Writer, "json error", http.StatusUnauthorized)
+		return
+	}
+	context.Writer.Write(result_marshal)
+}
+
+func InProcessBooks(context *gin.Context) {
+	context.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+	authToken := context.Request.Header.Get("Authorization")
+	userEmail, err := MakeAuth(authToken)
+	if err != nil {
+		http.Error(context.Writer, err.Error(), http.StatusUnauthorized)
+		return
+	}
+	// get user id
+	var userId int
+	err = db.QueryRow("select user_id from app_users where mail_address = ?",
+		userEmail).Scan(&userId)
+
+	rows, err := db.Query("select book_id, name, exprice, price, ISBN, imageURL, date, description from books where posterId = ? and status = 0", userId)
+	if err != nil {
+		log.Println(err)
+		http.Error(context.Writer, "Sql Error, try again", http.StatusNotFound)
+		return
+	}
+
+	var result []Book
+	for rows.Next() {
+		var bookId int
+		var bookName string
+		var exPrice float64
+		var price float64
+		var ISBN string
+		var imageURL string
+		var date string
+		var description string
+
+		if err := rows.Scan(&bookId, &bookName, &exPrice, &price, &ISBN, &imageURL, &date, &description); err != nil {
+			log.Println(err)
+			http.Error(context.Writer, "Unknown error", http.StatusNotFound)
+			return
+		}
+		result = append(result, Book {BookId: strconv.Itoa(bookId), BookName: bookName, ExPrice: exPrice, Price: price,
+			ISBN: ISBN, ImageURL: imageURL, Date: date, Description: description})
+	}
+	result_marshal, err := json.Marshal(result)
+	fmt.Println(string(result_marshal))
+	if err != nil {
+		log.Fatal(err)
+		http.Error(context.Writer, "json error", http.StatusUnauthorized)
+		return
+	}
+	context.Writer.Write(result_marshal)
+}
+
+func ProcessedOrder(context *gin.Context) {
+	context.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+	// do auth
+	authToken := context.Request.Header.Get("Authorization")
+	userEmail, err := MakeAuth(authToken)
+	if err != nil {
+		http.Error(context.Writer, err.Error(), http.StatusUnauthorized)
+		return
+	}
+	// get user id
+	var userId int
+	err = db.QueryRow("select user_id from app_users where mail_address = ?",
+		userEmail).Scan(&userId)
+
+	rows, err := db.Query("select order_id, customer_id, book_id, order_status, start_date, end_date from orders where seller_id = ? and order_status = 2", userId)
+	if err != nil {
+		log.Println(err)
+		http.Error(context.Writer, "Sql Error, try again", http.StatusNotFound)
+		return
+	}
+
+	var result []Order
+
+	for rows.Next() {
+		var orderId int
+		var customerId int
+		var customerName string
+		var bookId int
+		var orderStatus int
+		var startDate string
+		var endDate string
+		if err := rows.Scan(&orderId, &customerId, &bookId, &orderStatus, &startDate, &endDate); err != nil {
+			log.Println(err)
+			http.Error(context.Writer, "Unknown error", http.StatusNotFound)
+			return
+		}
+		// get customer name
+		err = db.QueryRow("select user_name from app_users where user_id = ?",
+			customerId).Scan(&customerName)
+		if err != nil {
+			log.Println(err)
+			http.Error(context.Writer, "Unknown error", http.StatusNotFound)
+			return
+		}
+		// get book info
+		var bookName string
+		var exprice float64
+		var price float64
+		err = db.QueryRow("select name, exprice, price from books where book_id = ?", bookId).Scan(&bookName, &exprice, &price)
+		if err != nil {
+			log.Println(err)
+			http.Error(context.Writer, "Unknown error", http.StatusNotFound)
+			return
+		}
+
+		result = append(result, Order{OrderId: strconv.Itoa(orderId), CustomerId: strconv.Itoa(customerId),
+			CustomerName: customerName, BookId: strconv.Itoa(bookId), OrderStatus: orderStatus, StartDate: startDate, EndDate: endDate,
+			BookName: bookName, ExPrice: exprice, Price: price})
+	}
+	result_marshal, err := json.Marshal(result)
+	fmt.Println(string(result_marshal))
+	if err != nil {
+		log.Fatal(err)
+		http.Error(context.Writer, "json error", http.StatusUnauthorized)
+		return
+	}
+	context.Writer.Write(result_marshal)
+}
+
+func InProcessOrder(context *gin.Context) {
+	context.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+	// do auth
+	authToken := context.Request.Header.Get("Authorization")
+	userEmail, err := MakeAuth(authToken)
+	if err != nil {
+		http.Error(context.Writer, err.Error(), http.StatusUnauthorized)
+		return
+	}
+	// get user id
+	var userId int
+	err = db.QueryRow("select user_id from app_users where mail_address = ?",
+		userEmail).Scan(&userId)
+
+	rows, err := db.Query("select order_id, customer_id, book_id, order_status, start_date from orders where seller_id = ? and (order_status = 0 or order_status = 1)", userId)
+	if err != nil {
+		log.Println(err)
+		http.Error(context.Writer, "Sql Error, try again", http.StatusNotFound)
+		return
+	}
+
+	var result []Order
+
+	for rows.Next() {
+		var orderId int
+		var customerId int
+		var customerName string
+		var bookId int
+		var orderStatus int
+		var startDate string
+		if err := rows.Scan(&orderId, &customerId, &bookId, &orderStatus, &startDate); err != nil {
+			log.Println(err)
+			http.Error(context.Writer, "Unknown error", http.StatusNotFound)
+			return
+		}
+		// get customer name
+		err = db.QueryRow("select user_name from app_users where user_id = ?",
+			customerId).Scan(&customerName)
+		if err != nil {
+			log.Println(err)
+			http.Error(context.Writer, "Unknown error", http.StatusNotFound)
+			return
+		}
+		// get book info
+		var bookName string
+		var exprice float64
+		var price float64
+		err = db.QueryRow("select name, exprice, price from books where book_id = ?", bookId).Scan(&bookName, &exprice, &price)
+		if err != nil {
+			log.Println(err)
+			http.Error(context.Writer, "Unknown error", http.StatusNotFound)
+			return
+		}
+
+		result = append(result, Order{OrderId: strconv.Itoa(orderId), CustomerId: strconv.Itoa(customerId),
+			CustomerName: customerName, BookId: strconv.Itoa(bookId), OrderStatus: orderStatus, StartDate: startDate,
+			BookName: bookName, ExPrice: exprice, Price: price})
+	}
+	result_marshal, err := json.Marshal(result)
+	fmt.Println(string(result_marshal))
+	if err != nil {
+		log.Fatal(err)
+		http.Error(context.Writer, "json error", http.StatusUnauthorized)
+		return
+	}
+	context.Writer.Write(result_marshal)
+}
+
+func SendMessage(context *gin.Context) {
+	context.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+	body, err := ioutil.ReadAll(context.Request.Body)
+	if err != nil {
+		log.Println(err)
+		http.Error(context.Writer, "Login failed!", http.StatusUnauthorized)
+		return
+	}
+
+	var userData map[string]string
+	json.Unmarshal(body, &userData)  // Touserid + content
+
+	// first do authenticate
+	authToken := context.Request.Header.Get("Authorization")
+	userEmail, err := MakeAuth(authToken)
+	if err != nil {
+		http.Error(context.Writer, err.Error(), http.StatusUnauthorized)
+		return
+	}
+	// get user id
+	var userId int
+	err = db.QueryRow("select user_id from app_users where mail_address = ?",
+		userEmail).Scan(&userId)
+
+	ToUserId, err := strconv.Atoi(userData["ToUserId"])
+	if err != nil {   // not a integer
+		http.Error(context.Writer, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	_, err = db.Exec("insert into message(from_id, to_id, date, content) value (?, ?, now(), ?)", userId, ToUserId, userData["Content"]);
+	if err != nil {
+		log.Println(err)
+		http.Error(context.Writer, "Error at query", http.StatusNotFound)
+		return
+	}
+
+	context.Writer.Write(body)
+}
+
+func GetRequest(context *gin.Context) {
+	context.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+	authToken := context.Request.Header.Get("Authorization")
+	userEmail, err := MakeAuth(authToken)
+	if err != nil {
+		http.Error(context.Writer, err.Error(), http.StatusUnauthorized)
+		return
+	}
+	fmt.Println(userEmail)
+
+	rows, err := db.Query("select * from request")
+
+	if err != nil {
+		log.Println(err)
+		http.Error(context.Writer, "Not a valid user", http.StatusNotFound)
+		return
+	}
+
+	var result []Request
+
+
+	for rows.Next() {
+		var userId int
+		var requestId int
+		var title string
+		var content string
+		var date string
+
+		// parse data
+		if err := rows.Scan(&requestId, &userId, &title, &content, &date); err != nil {
+			log.Fatal(err)
+			http.Error(context.Writer, "Unknown error", http.StatusNotFound)
+			return
+		}
+
+		var userName string
+		// get Username from userid
+		err := db.QueryRow("select user_name from app_users where user_id = ?", userId).Scan(&userName)
+		if err != nil {
+			http.Error(context.Writer, "Unknown error", http.StatusNotFound)
+			return
+		}
+
+
+		// store the result
+		result = append(result, Request{RequestId: requestId, UserId: strconv.Itoa(userId), UserName: userName, Title: title, Content: content, Date: date})
+	}
+	result_marshal, err := json.Marshal(result)
+	fmt.Println(string(result_marshal))
+	if err != nil {
+		log.Fatal(err)
+		http.Error(context.Writer, "json error", http.StatusUnauthorized)
+		return
+	}
+	context.Writer.Write(result_marshal)
+}
+
 func GetMessage(context *gin.Context) {
 	context.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 	body, err := ioutil.ReadAll(context.Request.Body)
@@ -403,7 +740,7 @@ func GetBook(context *gin.Context) {
 
 	arg := context.Param("arg")
 	if (arg == "all") {
-		stm, err := db.Prepare("select book_id, posterID, name, exprice, price, ISBN, imageURL, date, description from books")
+		stm, err := db.Prepare("select book_id, posterID, name, exprice, price, ISBN, imageURL, date, description from books where status = 0")
 		defer stm.Close()
 		rows, err := stm.Query()
 		if err != nil {
@@ -439,7 +776,7 @@ func GetBook(context *gin.Context) {
 				return
 			}
 
-			result = append(result, Book {Book_id: strconv.Itoa(id), Posterid: posterID, PosterName: posterName, Book_Name: name, Exprice: exprice, Price: price,
+			result = append(result, Book {BookId: strconv.Itoa(id), PosterId: posterID, PosterName: posterName, BookName: name, ExPrice: exprice, Price: price,
 				ISBN: ISBN, ImageURL: imageURL, Date: date, Description: description})
 
 		}
@@ -599,49 +936,4 @@ func Signup(context *gin.Context) {
 type JWTData struct {
 	jwt.StandardClaims
 	CustomClaims map[string]string `json:"custom,omitempty"`
-}
-
-func login(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		log.Println(err)
-		http.Error(w, "Login failed!", http.StatusUnauthorized)
-	}
-
-	var userData map[string]string
-	json.Unmarshal(body, &userData)
-
-	if userData["email"] == "zuhxs@berkeley.edu" && userData["password"] == "admin123" {
-		claims := JWTData{
-			StandardClaims: jwt.StandardClaims{
-				ExpiresAt: time.Now().Add(time.Hour).Unix(),
-			},
-			CustomClaims: map[string]string{
-				"userid": "zuhxs",
-			},
-		}
-
-		token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-		tokenString, err := token.SignedString([]byte(SECRET))
-		if err != nil {
-			log.Println(err)
-			http.Error(w, "Login failed!", http.StatusUnauthorized)
-		}
-
-		json, err := json.Marshal(struct {
-			Token string `json:"token"`
-		}{
-			tokenString,
-		})
-
-		if err != nil {
-			log.Println(err)
-			http.Error(w, "login failed!", http.StatusUnauthorized)
-		}
-
-		w.Write(json)
-	} else {
-		http.Error(w, "Login failed!", http.StatusUnauthorized)
-	}
 }
